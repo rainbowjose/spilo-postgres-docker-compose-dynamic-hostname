@@ -1,0 +1,78 @@
+version: '3'
+services:
+  pgnode:
+    image: registry.opensource.zalan.do/acid/spilo-15:3.0-p1
+    extra_hosts:
+      - "postgresnode1:10.0.0.31"
+      - "postgresnode2:10.0.0.32"
+      - "postgresnode3:10.0.0.33"
+      - "spilo1:10.0.0.31"
+      - "spilo2:10.0.0.32"
+      - "spilo3:10.0.0.33"
+    privileged: true
+    volumes:
+      - ./pg_data/pgdata:/home/postgres/pgdata
+    environment:
+      - SCOPE=gfnpostgrescluster
+      - PGPASSWORD_STANDBY=Blablabla123!
+      - PGPASSWORD_ADMIN=Blablabla123!
+      - PGPASSWORD_SUPERUSER=Blablabla123!
+      - ETCDCTL_ENDPOINTS=http://0.0.0.0:2379
+      - ETCD3_HOST=0.0.0.0:2379
+      - ENABLE_PG_MON='true'
+      - ALLOW_NOSSL=true
+      - PGVERSION=15
+      - |
+        SPILO_CONFIGURATION=
+          bootstrap:
+            dcs:
+              postgresql:
+                parameters:
+                  max_connections: 9999
+          postgresql:
+            parameters:
+              max_connections: 9999
+    network_mode: "host"
+  etcd:
+    extra_hosts:
+      - "postgresnode1:10.0.0.31"
+      - "postgresnode2:10.0.0.32"
+      - "postgresnode3:10.0.0.33"
+      - "spilo1:10.0.0.31"
+      - "spilo2:10.0.0.32"
+      - "spilo3:10.0.0.33"
+    image: bitnami/etcd:3.5.9
+    user: root
+    volumes:
+      - ./etcd_data/bitnami/etcd:/bitnami/etcd
+      - ./etcd_data/etc/service/etcd/run:/etc/service/etcd/run
+      - ./etcd_data/tmp:/tmp
+    command: sh -c "
+      ETCD_NAME=$$HOSTNAME
+      ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS=http://$$HOSTNAME:2379
+      ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$$HOSTNAME:2380
+      ETCD_INITIAL_CLUSTER_TOKEN=gfnpostgrescluster
+      ETCD_INITIAL_CLUSTER=postgresnode1=http://postgresnode1:2380,postgresnode2=http://postgresnode2:2380,postgresnode3=http://postgresnode3:2380
+      etcd"
+    network_mode: "host"
+  #haproxy:
+  #  image: haproxy:2.6.6-alpine
+  #  environment:
+  #    MAX_CONN: 10000
+  #    PG_NODE1_HOST: postgresnode1
+  #    PG_NODE2_HOST: postgresnode2
+  #    PG_NODE2_HOST: postgresnode3
+  #  expose:
+  #    - '2345'
+  #  ports:
+  #    - '2345:2345'
+  #    - '7000:7000'
+  #  network_mode: "host"
+  #  volumes:
+  #    - ./haproxy:/usr/local/etc/haproxy
+networks:
+  host:
+    name: host
+    external: true
